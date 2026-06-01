@@ -11,7 +11,7 @@ export const LoginPage: React.FC = () => {
   const [step, setStep] = useState<1 | 2>(1);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  
+
   const { setAuthData } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -22,17 +22,12 @@ export const LoginPage: React.FC = () => {
       setError('Please enter email and password');
       return;
     }
-    
+
     setLoading(true);
     setError(null);
     try {
-      // Step 1: Send Login OTP
-      // Wait, standard login requires password checking in Spring Security.
-      // We will assume `/api/auth/login/otp` validates the password via Keycloak 
-      // or we can adjust it if needed. Based on the requirements: 
-      // "User enters email + password -> Keycloak validates -> System generates OTP -> System sends OTP"
-      // The `SendOTPRequest` has `password` field now. Let's pass it.
-      await authApi.sendLoginOTP(email);
+      // Step 1: Send Login OTP (validates credentials with Keycloak first)
+      await authApi.sendLoginOTP(email, password);
       setStep(2);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
@@ -43,30 +38,34 @@ export const LoginPage: React.FC = () => {
 
   const handleVerifyOTP = async (otpCode: string) => {
     setLoading(true);
+    setError(null);
     try {
       const response = await authApi.verifyLoginOTP(email, otpCode);
       const { token, ...userData } = response;
       setAuthData(userData, token);
-      
+
       const from = location.state?.from?.pathname || '/dashboard';
       navigate(from, { replace: true });
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Invalid or expired OTP code.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleResendOTP = async () => {
-    await authApi.sendLoginOTP(email);
+    await authApi.sendLoginOTP(email, password);
   };
 
   if (step === 2) {
     return (
       <div className="auth-container">
-        <OTPVerification 
+        <OTPVerification
           email={email}
           onVerify={handleVerifyOTP}
           onResend={handleResendOTP}
           isLoading={loading}
+          error={error}
         />
       </div>
     );

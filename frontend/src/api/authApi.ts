@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = '/api/auth'; // Assuming proxy setup or relative paths
+const API_URL = '/api/auth';
 
 export interface LoginResponse {
   token: string;
@@ -14,16 +14,16 @@ export interface LoginResponse {
 }
 
 export const authApi = {
-  sendSignupOTP: async (email: string) => {
-    return axios.post(`${API_URL}/signup/otp`, { email });
+  sendSignupOTP: async (email: string, password?: string, fullName?: string) => {
+    return axios.post(`${API_URL}/signup/otp`, { email, password, fullName });
   },
 
   verifySignupOTP: async (email: string, otpCode: string) => {
     return axios.post(`${API_URL}/signup/verify`, { email, otpCode });
   },
 
-  sendLoginOTP: async (email: string) => {
-    return axios.post(`${API_URL}/login/otp`, { email });
+  sendLoginOTP: async (email: string, password?: string) => {
+    return axios.post(`${API_URL}/login/otp`, { email, password });
   },
 
   verifyLoginOTP: async (email: string, otpCode: string) => {

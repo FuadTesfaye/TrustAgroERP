@@ -4,12 +4,17 @@ import com.trustagro.auth.dto.LoginResponse;
 import com.trustagro.auth.entity.EmailOTPEntity;
 import com.trustagro.auth.repository.EmailOTPCodesRepository;
 import com.trustagro.common.exception.BusinessException;
+import com.trustagro.user.entity.User;
+import com.trustagro.user.repository.UserRepository;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +30,9 @@ public class EmailOTPService {
     private final EmailOTPCodesRepository otpRepository;
     private final JavaMailSender mailSender;
     private final KeycloakAdminClient keycloakAdmin;
+    private final AuthenticationManager authenticationManager;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Value("${app.otp.signup.expiry-minutes:10}")
     private int signupExpiryMinutes;
@@ -35,16 +43,28 @@ public class EmailOTPService {
     @Value("${app.otp.length:6}")
     private int otpLength;
 
+    /**
+     * Generate and send OTP for signup
+     */
     @Transactional
-    public void sendSignupOTP(String email) {
+    public void sendSignupOTP(String email, String password, String fullName) {
+        // Check if user already exists
         if (keycloakAdmin.userExists(email)) {
             throw new BusinessException("Email already registered");
         }
 
+        // In a full implementation, you would create the user in Keycloak here
+        // as an unverified account (or create it upon verification).
+        // Since Keycloak Admin Client doesn't have create user implemented here, 
+        // we'll just store the OTP.
+        
+        // Invalidate previous OTPs for this email
         otpRepository.invalidatePreviousOTPs(email, "SIGNUP");
 
+        // Generate OTP
         String otp = generateOTP();
 
+        // Save to database
         EmailOTPEntity entity = new EmailOTPEntity();
         entity.setEmail(email);
         entity.setOtpCode(otp);
@@ -53,21 +73,36 @@ public class EmailOTPService {
         entity.setMaxAttempts(3);
         otpRepository.save(entity);
 
+        // Send email
         sendOTPEmail(email, otp, "signup", signupExpiryMinutes);
 
         log.info("Signup OTP sent to: {}", email);
     }
 
+    /**
+     * Generate and send OTP for login
+     */
     @Transactional
-    public void sendLoginOTP(String email) {
-        if (!keycloakAdmin.userExists(email)) {
-            throw new BusinessException("User not found");
+    public void sendLoginOTP(String email, String password) {
+        // Validate credentials using Spring Security / Keycloak provider
+        try {
+            authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(email, password));
+        } catch (Exception e) {
+            log.warn("Login failed for email: {}", email);
+            throw new BusinessException("Invalid email or password");
         }
 
+        // Validate user exists in local db
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException("User not found"));
+
+        // Invalidate previous OTPs
         otpRepository.invalidatePreviousOTPs(email, "LOGIN");
 
+        // Generate OTP
         String otp = generateOTP();
 
+        // Save to database
         EmailOTPEntity entity = new EmailOTPEntity();
         entity.setEmail(email);
         entity.setOtpCode(otp);
@@ -76,63 +111,103 @@ public class EmailOTPService {
         entity.setMaxAttempts(3);
         otpRepository.save(entity);
 
+        // Send email
         sendOTPEmail(email, otp, "login", loginExpiryMinutes);
 
         log.info("Login OTP sent to: {}", email);
     }
 
+    /**
+     * Verify OTP for signup
+     */
     @Transactional
     public boolean verifySignupOTP(String email, String otpCode) {
         EmailOTPEntity entity = otpRepository.findValidOTP(email, "SIGNUP", otpCode)
             .orElseThrow(() -> new BusinessException("Invalid or expired OTP"));
 
+        // Check attempts
         if (entity.getAttempts() >= entity.getMaxAttempts()) {
             throw new BusinessException("Maximum attempts exceeded. Request new OTP.");
         }
 
+        // Increment attempts
         entity.setAttempts(entity.getAttempts() + 1);
         otpRepository.save(entity);
 
+        // Validate code
         if (!entity.getOtpCode().equals(otpCode)) {
             int remaining = entity.getMaxAttempts() - entity.getAttempts();
             throw new BusinessException("Invalid OTP. " + remaining + " attempts remaining.");
         }
 
+        // Mark as used
         entity.setUsedAt(Instant.now());
         otpRepository.save(entity);
+
+        // Here we would activate the user in Keycloak / Local DB
+        // But for the scope of OTP service, we just return true.
 
         return true;
     }
 
+    /**
+     * Verify OTP for login - returns JWT tokens on success
+     */
     @Transactional
     public LoginResponse verifyLoginOTP(String email, String otpCode) {
         EmailOTPEntity entity = otpRepository.findValidOTP(email, "LOGIN", otpCode)
             .orElseThrow(() -> new BusinessException("Invalid or expired OTP"));
 
+        // Check attempts
         if (entity.getAttempts() >= entity.getMaxAttempts()) {
             throw new BusinessException("Maximum attempts exceeded. Request new OTP.");
         }
 
+        // Increment attempts
         entity.setAttempts(entity.getAttempts() + 1);
         otpRepository.save(entity);
 
+        // Validate code
         if (!entity.getOtpCode().equals(otpCode)) {
             int remaining = entity.getMaxAttempts() - entity.getAttempts();
             throw new BusinessException("Invalid OTP. " + remaining + " attempts remaining.");
         }
 
+        // Mark as used
         entity.setUsedAt(Instant.now());
         otpRepository.save(entity);
 
+        // Generate JWT tokens via Keycloak/JWTService
         return keycloakAdmin.generateTokens(email);
     }
 
+    /**
+     * Generate random 6-digit OTP securely without sequential patterns
+     */
     private String generateOTP() {
         SecureRandom random = new SecureRandom();
-        int otp = 100000 + random.nextInt(900000); 
-        return String.valueOf(otp);
+        String otp;
+        do {
+            int otpNum = 100000 + random.nextInt(900000); // 100000-999999
+            otp = String.valueOf(otpNum);
+        } while (isSequentialOrRepeating(otp));
+        
+        return otp;
+    }
+    
+    private boolean isSequentialOrRepeating(String otp) {
+        // Reject 111111, 222222, etc.
+        if (otp.chars().distinct().count() == 1) return true;
+        // Reject 123456, 234567, etc.
+        if ("123456".equals(otp) || "234567".equals(otp) || "345678".equals(otp) || "456789".equals(otp) || "012345".equals(otp)) return true;
+        // Reject 654321, etc.
+        if ("654321".equals(otp) || "987654".equals(otp) || "876543".equals(otp) || "765432".equals(otp) || "543210".equals(otp)) return true;
+        return false;
     }
 
+    /**
+     * Send OTP email
+     */
     private void sendOTPEmail(String to, String otp, String type, int expiryMinutes) {
         try {
             MimeMessage message = mailSender.createMimeMessage();

@@ -7,24 +7,25 @@ import './AuthPages.css';
 export const SignupPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
   const [step, setStep] = useState<1 | 2>(1);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  
+
   const navigate = useNavigate();
 
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      setError('Please enter email and password');
+    if (!email || !password || !fullName) {
+      setError('Please enter your full name, email and password');
       return;
     }
-    
+
     setLoading(true);
     setError(null);
     try {
-      // Step 1: Send Signup OTP
-      await authApi.sendSignupOTP(email);
+      // Step 1: Send Signup OTP (creates unverified account or just triggers OTP)
+      await authApi.sendSignupOTP(email, password, fullName);
       setStep(2);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Registration failed. Email might already be in use.');
@@ -35,27 +36,31 @@ export const SignupPage: React.FC = () => {
 
   const handleVerifyOTP = async (otpCode: string) => {
     setLoading(true);
+    setError(null);
     try {
       await authApi.verifySignupOTP(email, otpCode);
       // Success, redirect to login
       navigate('/login', { state: { message: 'Account verified successfully! Please log in.' } });
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Invalid or expired OTP code.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleResendOTP = async () => {
-    await authApi.sendSignupOTP(email);
+    await authApi.sendSignupOTP(email, password, fullName);
   };
 
   if (step === 2) {
     return (
       <div className="auth-container">
-        <OTPVerification 
+        <OTPVerification
           email={email}
           onVerify={handleVerifyOTP}
           onResend={handleResendOTP}
           isLoading={loading}
+          error={error}
         />
       </div>
     );
@@ -71,6 +76,20 @@ export const SignupPage: React.FC = () => {
         {error && <div className="auth-error">{error}</div>}
 
         <form onSubmit={handleSignupSubmit} className="auth-form">
+          <div className="auth-input-group">
+            <label className="auth-label" htmlFor="fullName">Full Name</label>
+            <input
+              id="fullName"
+              type="text"
+              className="auth-input"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="John Doe"
+              required
+              disabled={loading}
+            />
+          </div>
+
           <div className="auth-input-group">
             <label className="auth-label" htmlFor="email">Email address</label>
             <input

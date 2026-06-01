@@ -6,13 +6,16 @@ interface OTPVerificationProps {
   onVerify: (otp: string) => Promise<void>;
   onResend: () => Promise<void>;
   isLoading: boolean;
+  error?: string | null;
 }
 
-export const OTPVerification: React.FC<OTPVerificationProps> = ({ email, onVerify, onResend, isLoading }) => {
+export const OTPVerification: React.FC<OTPVerificationProps> = ({ email, onVerify, onResend, isLoading, error: externalError }) => {
   const [otp, setOtp] = useState<string[]>(Array(6).fill(''));
-  const [error, setError] = useState<string | null>(null);
+  const [internalError, setInternalError] = useState<string | null>(null);
   const [resendCooldown, setResendCooldown] = useState(60);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const error = externalError || internalError;
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -70,14 +73,14 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({ email, onVerif
     e.preventDefault();
     const otpCode = otp.join('');
     if (otpCode.length !== 6) {
-      setError('Please enter a 6-digit code');
+      setInternalError('Please enter a 6-digit code');
       return;
     }
-    setError(null);
+    setInternalError(null);
     try {
       await onVerify(otpCode);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Verification failed. Please try again.');
+      setInternalError(err.response?.data?.message || 'Verification failed. Please try again.');
     }
   };
 
@@ -86,11 +89,11 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({ email, onVerif
     try {
       await onResend();
       setResendCooldown(60);
-      setError(null);
+      setInternalError(null);
       setOtp(Array(6).fill(''));
       inputRefs.current[0]?.focus();
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to resend code.');
+      setInternalError(err.response?.data?.message || 'Failed to resend code.');
     }
   };
 

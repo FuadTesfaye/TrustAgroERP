@@ -2,6 +2,7 @@ package com.trustagro.auth.controller;
 
 import com.trustagro.auth.dto.LoginRequest;
 import com.trustagro.auth.dto.LoginResponse;
+import com.trustagro.auth.dto.SignupRequest;
 import com.trustagro.auth.service.AuthService;
 import com.trustagro.auth.dto.SendOTPRequest;
 import com.trustagro.auth.dto.VerifyOTPRequest;
@@ -31,14 +32,13 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(@Valid @RequestBody LoginRequest req) {
-        // Keeping legacy login just in case, or we can replace it.
-        // Actually, requirement says 2-step login: 1. Send OTP, 2. Verify OTP
+        // Keeping legacy login just in case, but frontend should use /login/otp + /login/verify
         return ResponseEntity.ok(ApiResponse.success(authService.login(req)));
     }
 
     @PostMapping("/signup/otp")
-    public ResponseEntity<ApiResponse<Void>> sendSignupOTP(@Valid @RequestBody SendOTPRequest req) {
-        emailOTPService.sendSignupOTP(req.getEmail());
+    public ResponseEntity<ApiResponse<Void>> sendSignupOTP(@Valid @RequestBody SignupRequest req) {
+        emailOTPService.sendSignupOTP(req.getEmail(), req.getPassword(), req.getFullName());
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
@@ -49,8 +49,8 @@ public class AuthController {
     }
 
     @PostMapping("/login/otp")
-    public ResponseEntity<ApiResponse<Void>> sendLoginOTP(@Valid @RequestBody SendOTPRequest req) {
-        emailOTPService.sendLoginOTP(req.getEmail());
+    public ResponseEntity<ApiResponse<Void>> sendLoginOTP(@Valid @RequestBody LoginRequest req) {
+        emailOTPService.sendLoginOTP(req.getEmail(), req.getPassword());
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
