@@ -1,6 +1,30 @@
 version: '3.8'
 
 services:
+  app-db:
+    image: postgres:15
+    container_name: app-db
+    environment:
+      - POSTGRES_DB=trust_agro_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - app_db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  keycloak-db:
+    image: postgres:15
+    container_name: keycloak-db
+    environment:
+      - POSTGRES_DB=keycloak
+      - POSTGRES_USER=keycloak
+      - POSTGRES_PASSWORD=keycloak
+    volumes:
+      - keycloak_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+
   keycloak:
     image: quay.io/keycloak/keycloak:24.0.4
     container_name: keycloak
@@ -12,21 +36,43 @@ services:
       - KC_DB_URL_DATABASE=keycloak
       - KC_DB_USERNAME=keycloak
       - KC_DB_PASSWORD=keycloak
+      - KC_HOSTNAME_URL=http://localhost:8081
+      - KC_HOSTNAME_STRICT=false
+      - KC_HTTP_PORT=8080
     ports:
       - "8081:8080"
     command: start-dev
     depends_on:
       - keycloak-db
 
-  keycloak-db:
-    image: postgres:15
-    container_name: keycloak-db
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend
     environment:
-      - POSTGRES_DB=keycloak
-      - POSTGRES_USER=keycloak
-      - POSTGRES_PASSWORD=keycloak
-    volumes:
-      - keycloak_data:/var/lib/postgresql/data
+      - DB_URL=jdbc:postgresql://app-db:5432/trust_agro_db
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=postgres
+      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_JWK_URI=http://keycloak:8080/realms/trust-agro/protocol/openid-connect/certs
+      - APP_CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:80
+    ports:
+      - "8082:8081"
+    depends_on:
+      - app-db
+      - keycloak
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
 
 volumes:
+  app_db_data:
   keycloak_data:
