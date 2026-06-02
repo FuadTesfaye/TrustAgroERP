@@ -32,7 +32,6 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
     private final CustomUserDetailsService userDetailsService;
-    private final KeycloakJwtAuthenticationConverter keycloakJwtAuthenticationConverter;
 
     @Value("${app.cors.allowed-origins}")
     private String allowedOrigins;
@@ -43,15 +42,12 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/login").permitAll()
-                        .requestMatchers("OPTIONS", "/**").permitAll()
+                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider())
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
-                .oauth2ResourceServer(oauth2 -> oauth2
-                        .jwt(jwt -> jwt.jwtAuthenticationConverter(keycloakJwtAuthenticationConverter))
-                );
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
