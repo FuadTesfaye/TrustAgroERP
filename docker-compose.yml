@@ -62,8 +62,10 @@ services:
       - KEYCLOAK_URL=http://keycloak:8080
       - KEYCLOAK_JWK_URI=http://keycloak:8080/realms/trust-agro/protocol/openid-connect/certs
       - APP_CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:80
-      - SMTP_HOST=mailhog
-      - SMTP_PORT=1025
+      - SMTP_HOST=smtp.gmail.com
+      - SMTP_PORT=587
+      - SMTP_USERNAME=fuadtesfaye24@gmail.com
+      - SMTP_PASSWORD=orivakinynwsfxao
     ports:
       - "8082:8081"
     depends_on:

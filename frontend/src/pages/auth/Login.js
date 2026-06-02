@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 
 import { useAuth } from '../../context/AuthContext';
+import { authApi } from '../../api/authApi';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
@@ -112,13 +113,15 @@ const TextField = ({ icon: Icon, label, className = '', action, error, ...props 
 );
 
 const Login = () => {
-  const { login } = useAuth();
+  const { setAuthData } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({ email: '', password: '' });
   const [errors, setErrors] = useState({});
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState(1);
+  const [otpCode, setOtpCode] = useState('');
 
   useEffect(() => {
     const rememberedEmail = localStorage.getItem(rememberedEmailKey);
@@ -138,6 +141,34 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (step === 2) {
+      if (!otpCode || otpCode.length !== 6) {
+        setErrors({ form: 'Please enter a valid 6-digit OTP code.' });
+        return;
+      }
+      setLoading(true);
+      try {
+        const response = await authApi.verifyLoginOTP(form.email.trim(), otpCode);
+        const { token, ...userData } = response;
+        setAuthData(userData, token);
+        
+        if (rememberMe) {
+          localStorage.setItem(rememberedEmailKey, form.email.trim());
+        } else {
+          localStorage.removeItem(rememberedEmailKey);
+        }
+        
+        navigate('/dashboard');
+      } catch (err) {
+        const message = getAuthErrorMessage(err);
+        setErrors({ form: message });
+        toast.error(message);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     const nextErrors = validateForm(form);
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
@@ -147,15 +178,9 @@ const Login = () => {
 
     setLoading(true);
     try {
-      await login(form.email.trim(), form.password);
-
-      if (rememberMe) {
-        localStorage.setItem(rememberedEmailKey, form.email.trim());
-      } else {
-        localStorage.removeItem(rememberedEmailKey);
-      }
-
-      navigate('/dashboard');
+      await authApi.sendLoginOTP(form.email.trim(), form.password);
+      setStep(2);
+      toast.success('OTP sent to your email!');
     } catch (err) {
       const message = getAuthErrorMessage(err);
       setErrors({ form: message });
@@ -245,65 +270,97 @@ const Login = () => {
                 )}
 
                 <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-                  <TextField
-                    icon={Mail}
-                    label="Email address"
-                    type="email"
-                    autoComplete="email"
-                    placeholder="name@trustagro.com"
-                    value={form.email}
-                    onChange={(e) => updateField('email', e.target.value)}
-                    error={errors.email}
-                    disabled={loading}
-                  />
-
-                  <TextField
-                    icon={Lock}
-                    label="Password"
-                    type={passwordInputType}
-                    autoComplete="current-password"
-                    placeholder="Enter your password"
-                    value={form.password}
-                    onChange={(e) => updateField('password', e.target.value)}
-                    error={errors.password}
-                    disabled={loading}
-                    action={
-                      <button
-                        type="button"
-                        className="flex h-8 w-8 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-500"
-                        onClick={() => setShowPassword((current) => !current)}
-                        aria-label={showPassword ? 'Hide password' : 'Show password'}
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    }
-                  />
-
-                  <div className="flex items-center justify-between gap-3">
-                    <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-600">
-                      <input
-                        type="checkbox"
-                        checked={rememberMe}
-                        onChange={(e) => setRememberMe(e.target.checked)}
+                  {step === 1 ? (
+                    <>
+                      <TextField
+                        icon={Mail}
+                        label="Email address"
+                        type="email"
+                        autoComplete="email"
+                        placeholder="name@trustagro.com"
+                        value={form.email}
+                        onChange={(e) => updateField('email', e.target.value)}
+                        error={errors.email}
                         disabled={loading}
-                        className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
                       />
-                      Remember me
-                    </label>
-                    <a href="/forgot-password" className="text-sm font-semibold text-brand-700 transition-colors hover:text-brand-800">
-                      Forgot password?
-                    </a>
-                  </div>
+
+                      <TextField
+                        icon={Lock}
+                        label="Password"
+                        type={passwordInputType}
+                        autoComplete="current-password"
+                        placeholder="Enter your password"
+                        value={form.password}
+                        onChange={(e) => updateField('password', e.target.value)}
+                        error={errors.password}
+                        disabled={loading}
+                        action={
+                          <button
+                            type="button"
+                            className="flex h-8 w-8 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                            onClick={() => setShowPassword((current) => !current)}
+                            aria-label={showPassword ? 'Hide password' : 'Show password'}
+                          >
+                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        }
+                      />
+
+                      <div className="flex items-center justify-between gap-3">
+                        <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-600">
+                          <input
+                            type="checkbox"
+                            checked={rememberMe}
+                            onChange={(e) => setRememberMe(e.target.checked)}
+                            disabled={loading}
+                            className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                          />
+                          Remember me
+                        </label>
+                        <a href="/forgot-password" className="text-sm font-semibold text-brand-700 transition-colors hover:text-brand-800">
+                          Forgot password?
+                        </a>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="mb-2 text-sm text-gray-600">
+                        Please enter the 6-digit OTP sent to {form.email}
+                      </div>
+                      <TextField
+                        icon={ShieldCheck}
+                        label="OTP Code"
+                        type="text"
+                        placeholder="123456"
+                        value={otpCode}
+                        onChange={(e) => {
+                          setOtpCode(e.target.value);
+                          setErrors({});
+                        }}
+                        maxLength={6}
+                        disabled={loading}
+                      />
+                      <div className="text-right">
+                        <button
+                          type="button"
+                          onClick={() => setStep(1)}
+                          className="text-sm font-semibold text-brand-700 hover:text-brand-800"
+                        >
+                          Back to Login
+                        </button>
+                      </div>
+                    </>
+                  )}
 
                   <Button type="submit" size="lg" className="h-12 w-full rounded-lg text-[15px]" disabled={loading}>
                     {loading ? (
                       <span className="inline-flex items-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                        Signing in
+                        {step === 1 ? 'Sending OTP...' : 'Verifying...'}
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-2">
-                        Login securely
+                        {step === 1 ? 'Login securely' : 'Verify OTP'}
                         <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                       </span>
                     )}

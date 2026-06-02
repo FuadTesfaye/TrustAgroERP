@@ -11,5 +11,6 @@ public enum RoleName {
     STORE_KEEPER,
     PHARMACY_SALES,
     FINANCE_OFFICER,
-    EXTENSION_WORKER
+    EXTENSION_WORKER,
+    USER
 }

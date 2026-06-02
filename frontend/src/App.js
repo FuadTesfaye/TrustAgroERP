@@ -10,6 +10,7 @@ import AppShell from './components/layout/AppShell';
 import { ROLES, ROLE_GROUPS } from './utils/rbac';
 
 import Login from './pages/auth/Login';
+import Register from './pages/auth/Register';
 import Dashboard from './pages/dashboard/Dashboard';
 import UserList from './pages/users/UserList';
 import UserForm from './pages/users/UserForm';
@@ -60,6 +61,7 @@ function App() {
         <Routes>
           {/* Public route */}
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
           
           {/* Protected routes with AppShell */}
           <Route path="/" element={<ProtectedRoute><AppShell /></ProtectedRoute>}>

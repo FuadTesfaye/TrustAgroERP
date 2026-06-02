@@ -50,13 +50,24 @@ public class EmailOTPService {
     public void sendSignupOTP(String email, String password, String fullName) {
         // Check if user already exists
         if (keycloakAdmin.userExists(email)) {
-            throw new BusinessException("Email already registered");
+            User existingUser = userRepository.findByEmail(email).orElse(null);
+            if (existingUser != null && existingUser.getStatus() == com.trustagro.user.entity.UserStatus.ACTIVE) {
+                throw new BusinessException("Email already registered and active");
+            }
+            // If they are inactive, we just resend the OTP.
+        } else {
+            // Create user in Keycloak (unverified)
+            keycloakAdmin.createUser(email, password, fullName);
+            
+            // Create user in Local DB (inactive)
+            User newUser = new User();
+            newUser.setEmail(email);
+            newUser.setFullName(fullName);
+            newUser.setPassword(passwordEncoder.encode(password));
+            newUser.setRole(com.trustagro.user.entity.RoleName.USER);
+            newUser.setStatus(com.trustagro.user.entity.UserStatus.INACTIVE);
+            userRepository.save(newUser);
         }
-
-        // In a full implementation, you would create the user in Keycloak here
-        // as an unverified account (or create it upon verification).
-        // Since Keycloak Admin Client doesn't have create user implemented here, 
-        // we'll just store the OTP.
         
         // Invalidate previous OTPs for this email
         otpRepository.invalidatePreviousOTPs(email, "SIGNUP");
@@ -144,8 +155,13 @@ public class EmailOTPService {
         entity.setUsedAt(Instant.now());
         otpRepository.save(entity);
 
-        // Here we would activate the user in Keycloak / Local DB
-        // But for the scope of OTP service, we just return true.
+        // Activate the user in Keycloak / Local DB
+        keycloakAdmin.enableUser(email);
+        
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException("User not found"));
+        user.setStatus(com.trustagro.user.entity.UserStatus.ACTIVE);
+        userRepository.save(user);
 
         return true;
     }
@@ -214,7 +230,7 @@ public class EmailOTPService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
             helper.setTo(to);
-            helper.setFrom("noreply@trustagro.com", "Trust Agro");
+            helper.setFrom("fuadtesfaye24@gmail.com", "Trust Agro");
             
             if ("signup".equals(type)) {
                 helper.setSubject("Trust Agro - Email Verification Code");

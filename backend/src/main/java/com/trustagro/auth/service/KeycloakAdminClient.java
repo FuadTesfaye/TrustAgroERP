@@ -11,6 +11,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PostConstruct;
+import org.keycloak.representations.idm.CredentialRepresentation;
+import org.keycloak.representations.idm.UserRepresentation;
+import jakarta.ws.rs.core.Response;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 @Component
@@ -70,6 +76,39 @@ public class KeycloakAdminClient {
             log.warn("Keycloak userExists check failed, falling back to local DB", e);
         }
         return userRepository.findByEmail(email).isPresent();
+    }
+
+    public void createUser(String email, String password, String fullName) {
+        UserRepresentation user = new UserRepresentation();
+        user.setUsername(email);
+        user.setEmail(email);
+        user.setFirstName(fullName);
+        user.setEnabled(false);
+        user.setEmailVerified(false);
+
+        CredentialRepresentation credential = new CredentialRepresentation();
+        credential.setType(CredentialRepresentation.PASSWORD);
+        credential.setValue(password);
+        credential.setTemporary(false);
+
+        user.setCredentials(Collections.singletonList(credential));
+
+        Response response = keycloak.realm(realm).users().create(user);
+        if (response.getStatus() != 201 && response.getStatus() != 409) {
+            log.error("Failed to create user in Keycloak: {}", response.getStatusInfo().getReasonPhrase());
+            throw new RuntimeException("Failed to create user in Keycloak");
+        }
+    }
+
+    public void enableUser(String email) {
+        List<UserRepresentation> users = keycloak.realm(realm).users().searchByEmail(email, true);
+        if (users.isEmpty()) {
+            throw new RuntimeException("User not found in Keycloak");
+        }
+        UserRepresentation user = users.get(0);
+        user.setEnabled(true);
+        user.setEmailVerified(true);
+        keycloak.realm(realm).users().get(user.getId()).update(user);
     }
 
     public LoginResponse generateTokens(String email) {

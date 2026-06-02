@@ -1,4 +1,4 @@
-import axios from 'axios';
+import api from './axios';
 
 const API_URL = '/api/auth';
 
@@ -15,21 +15,21 @@ export interface LoginResponse {
 
 export const authApi = {
   sendSignupOTP: async (email: string, password?: string, fullName?: string) => {
-    return axios.post(`${API_URL}/signup/otp`, { email, password, fullName });
+    return api.post(`${API_URL}/signup/otp`, { email, password, fullName });
   },
 
   verifySignupOTP: async (email: string, otpCode: string) => {
-    return axios.post(`${API_URL}/signup/verify`, { email, otpCode });
+    return api.post(`${API_URL}/signup/verify`, { email, otpCode });
   },
 
   sendLoginOTP: async (email: string, password?: string) => {
-    return axios.post(`${API_URL}/login/otp`, { email, password });
+    return api.post(`${API_URL}/login/otp`, { email, password });
   },
 
   verifyLoginOTP: async (email: string, otpCode: string) => {
-    const response = await axios.post<{ data: LoginResponse }>(`${API_URL}/login/verify`, { email, otpCode });
+    const response = await api.post<{ data: LoginResponse }>(`${API_URL}/login/verify`, { email, otpCode });
     return response.data.data;
   },
 
-  me: () => axios.get(`${API_URL}/me`),
+  me: () => api.get(`${API_URL}/me`),
 };

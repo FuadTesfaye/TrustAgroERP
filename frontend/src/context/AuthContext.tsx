@@ -1,16 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { authApi } from '../api/authApi';
+import api from '../api/axios';
 import { hasAnyRole, hasAllRoles, hasRole, parseUserRoles, ROLES } from '../utils/rbac';
-import axios from 'axios';
-import Keycloak from 'keycloak-js';
-
-const keycloakConfig = {
-  url: 'http://localhost:8081',
-  realm: 'trust-agro',
-  clientId: 'frontend-client',
-};
-
-export const keycloak = new Keycloak(keycloakConfig);
 
 interface AuthContextType {
   user: any;
@@ -18,7 +9,6 @@ interface AuthContextType {
   loading: boolean;
   setAuthData: (userData: any, token: string) => void;
   logout: () => void;
-  loginWithKeycloak: () => void;
   hasRole: (...roles: string[]) => boolean;
   hasAnyRole: (...roles: string[]) => boolean;
   hasAllRoles: (...roles: string[]) => boolean;
@@ -31,90 +21,44 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<any>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [loading, setLoading] = useState(true);
-  const [keycloakInitialized, setKeycloakInitialized] = useState(false);
 
   const userRoles = parseUserRoles(user);
 
-  // Set up axios interceptor to inject the in-memory token
   useEffect(() => {
-    const interceptorId = axios.interceptors.request.use(async (config) => {
-      let activeToken = token;
-      
-      // Update Keycloak token if needed
-      if (keycloak.authenticated && keycloak.token) {
-          try {
-              await keycloak.updateToken(30);
-              activeToken = keycloak.token;
-          } catch (error) {
-              console.error('Failed to refresh token', error);
-          }
-      }
-
-      if (activeToken && config.headers) {
-        config.headers.Authorization = `Bearer ${activeToken}`;
-      }
-      return config;
-    });
-
-    return () => {
-      axios.interceptors.request.eject(interceptorId);
-    };
-  }, [token, keycloakInitialized]);
-
-  useEffect(() => {
-    keycloak.init({ onLoad: 'check-sso', silentCheckSsoRedirectUri: window.location.origin + '/silent-check-sso.html' })
-      .then((authenticated) => {
-        setKeycloakInitialized(true);
-        if (authenticated && keycloak.token) {
-          setToken(keycloak.token);
-          // Fetch user details from Keycloak or backend
-          keycloak.loadUserProfile().then(profile => {
-             setUser({
-                 id: keycloak.subject,
-                 name: profile.firstName + ' ' + profile.lastName,
-                 email: profile.email,
-                 role: keycloak.realmAccess?.roles?.find(r => r.startsWith('ROLE_'))?.replace('ROLE_', '') || 'USER'
-             });
-          });
-        }
-      })
-      .catch(console.error);
-  }, []);
-
-  useEffect(() => {
-    // We would ideally call an endpoint to refresh token from httpOnly cookie here
-    // For now, if no token, we just finish loading (user is logged out)
+    // If token exists, fetch user details to verify it
     if (!token) {
       setLoading(false);
       return;
     }
+
     authApi.me()
-      .then((res) => setUser(res.data.data))
+      .then((res) => {
+        setUser(res.data.data);
+      })
       .catch(() => {
+        // If me() fails (token expired/invalid), clear everything
+        localStorage.removeItem('token');
         setToken(null);
         setUser(null);
       })
-      .finally(() => setLoading(false));
-  }, [token]);
+      .finally(() => {
+        setLoading(false);
+      });
+  }, []);
 
   const setAuthData = (userData: any, newToken: string) => {
+    localStorage.setItem('token', newToken);
     setToken(newToken);
     setUser(userData);
   };
 
   const logout = () => {
-    if (keycloak.authenticated) {
-        keycloak.logout();
-    } else {
-        setToken(null);
-        setUser(null);
-    }
-  };
-
-  const loginWithKeycloak = () => {
-      keycloak.login();
+    localStorage.removeItem('token');
+    setToken(null);
+    setUser(null);
+    window.location.href = '/login';
   };
 
   const hasRoleLegacy = useCallback((...roles: string[]) => {
@@ -164,7 +108,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     loading,
     setAuthData,
     logout,
-    loginWithKeycloak,
     hasRole: hasRoleLegacy,
     hasAnyRole: hasAnyRoleCheck,
     hasAllRoles: hasAllRolesCheck,
