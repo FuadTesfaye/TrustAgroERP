@@ -158,7 +158,7 @@ const Login = () => {
           localStorage.removeItem(rememberedEmailKey);
         }
         
-        navigate('/dashboard');
+        window.location.href = '/dashboard';
       } catch (err) {
         const message = getAuthErrorMessage(err);
         setErrors({ form: message });

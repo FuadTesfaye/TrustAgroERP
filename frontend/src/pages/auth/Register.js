@@ -141,7 +141,7 @@ const Register = () => {
         const { token, ...userData } = response.data.data;
         setAuthData(userData, token);
         toast.success('Registration successful! Welcome to Trust Agro.');
-        navigate('/dashboard');
+        window.location.href = '/dashboard';
       } catch (err) {
         const message = getAuthErrorMessage(err);
         setErrors({ form: message });
