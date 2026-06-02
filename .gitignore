@@ -2,7 +2,7 @@
 frontend/node_modules/
 frontend/build/
 frontend/.git_frontend_backup/
-
+ERp/Trust-ERP/node_modules
 # Java / backend
 backend/target/
 backend/.m2/
