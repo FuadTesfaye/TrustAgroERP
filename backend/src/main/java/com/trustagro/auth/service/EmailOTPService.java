@@ -132,7 +132,7 @@ public class EmailOTPService {
      * Verify OTP for signup
      */
     @Transactional
-    public boolean verifySignupOTP(String email, String otpCode) {
+    public LoginResponse verifySignupOTP(String email, String otpCode) {
         EmailOTPEntity entity = otpRepository.findValidOTP(email, "SIGNUP", otpCode)
             .orElseThrow(() -> new BusinessException("Invalid or expired OTP"));
 
@@ -163,7 +163,8 @@ public class EmailOTPService {
         user.setStatus(com.trustagro.user.entity.UserStatus.ACTIVE);
         userRepository.save(user);
 
-        return true;
+        // Return JWT tokens
+        return keycloakAdmin.generateTokens(email);
     }
 
     /**

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import {
   CheckCircle2,
@@ -365,6 +365,15 @@ const Login = () => {
                       </span>
                     )}
                   </Button>
+                  
+                  {step === 1 && (
+                    <div className="text-center text-sm text-gray-600 mt-2">
+                      Don't have an account?{' '}
+                      <Link to="/register" className="font-semibold text-brand-700 transition-colors hover:text-brand-800">
+                        Register here
+                      </Link>
+                    </div>
+                  )}
                 </form>
               </CardContent>
             </Card>

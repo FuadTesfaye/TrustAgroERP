@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-toastify';
 import {
   CheckCircle2,
@@ -111,6 +112,7 @@ const TextField = ({ icon: Icon, label, className = '', action, error, ...props 
 
 const Register = () => {
   const navigate = useNavigate();
+  const { setAuthData } = useAuth();
   const [form, setForm] = useState({ fullName: '', email: '', password: '' });
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
@@ -135,9 +137,11 @@ const Register = () => {
       }
       setLoading(true);
       try {
-        await authApi.verifySignupOTP(form.email.trim(), otpCode);
-        toast.success('Registration successful! Please login.');
-        navigate('/login');
+        const response = await authApi.verifySignupOTP(form.email.trim(), otpCode);
+        const { token, ...userData } = response.data.data;
+        setAuthData(userData, token);
+        toast.success('Registration successful! Welcome to Trust Agro.');
+        navigate('/dashboard');
       } catch (err) {
         const message = getAuthErrorMessage(err);
         setErrors({ form: message });
@@ -344,6 +348,15 @@ const Register = () => {
                       </span>
                     )}
                   </Button>
+                  
+                  {step === 1 && (
+                    <div className="text-center text-sm text-gray-600 mt-2">
+                      Already have an account?{' '}
+                      <Link to="/login" className="font-semibold text-brand-700 transition-colors hover:text-brand-800">
+                        Login here
+                      </Link>
+                    </div>
+                  )}
                 </form>
               </CardContent>
             </Card>

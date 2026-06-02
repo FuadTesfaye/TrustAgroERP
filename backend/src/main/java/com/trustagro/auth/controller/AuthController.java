@@ -43,9 +43,9 @@ public class AuthController {
     }
 
     @PostMapping("/signup/verify")
-    public ResponseEntity<ApiResponse<Boolean>> verifySignupOTP(@Valid @RequestBody VerifyOTPRequest req) {
-        boolean verified = emailOTPService.verifySignupOTP(req.getEmail(), req.getOtpCode());
-        return ResponseEntity.ok(ApiResponse.success(verified));
+    public ResponseEntity<ApiResponse<LoginResponse>> verifySignupOTP(@Valid @RequestBody VerifyOTPRequest req) {
+        LoginResponse response = emailOTPService.verifySignupOTP(req.getEmail(), req.getOtpCode());
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @PostMapping("/login/otp")
